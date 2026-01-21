@@ -11,7 +11,8 @@
  */
 class TransferFunctionView : public juce::Component,
                              public juce::ComboBox::Listener,
-                             public juce::ChangeListener
+                             public juce::ChangeListener,
+                             public juce::Timer
 {
 public:
     TransferFunctionView(TFController& controller);
@@ -22,9 +23,11 @@ public:
     
     void comboBoxChanged(juce::ComboBox* comboBoxThatHasChanged) override;
     void changeListenerCallback(juce::ChangeBroadcaster* source) override;
+    void timerCallback() override;
     
 private:
     void updateChannelSelectors();
+    void updateSuggestions();
     
     TFController& controller;
     
@@ -35,4 +38,5 @@ private:
     
     std::unique_ptr<class PhasePlotComponent> phasePlot;
     std::unique_ptr<class MagnitudePlotComponent> magnitudePlot;
+    std::unique_ptr<class TFAutoSuggestionsComponent> suggestionsComponent;
 };

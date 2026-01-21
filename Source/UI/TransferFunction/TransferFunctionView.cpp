@@ -1,12 +1,16 @@
 #include "TransferFunctionView.h"
 #include "PhasePlotComponent.h"
 #include "MagnitudePlotComponent.h"
+#include "TFAutoSuggestionsComponent.h"
+#include "../../Localization/LocalizedStrings.h"
 
 TransferFunctionView::TransferFunctionView(TFController& ctrl)
     : controller(ctrl)
 {
     // Channel selectors
-    referenceLabel = std::make_unique<juce::Label>("refLabel", "Reference Channel:");
+    auto& strings = LocalizedStrings::getInstance();
+    
+    referenceLabel = std::make_unique<juce::Label>("refLabel", strings.getTFReferenceChannel());
     referenceLabel->setColour(juce::Label::textColourId, juce::Colours::white);
     addAndMakeVisible(referenceLabel.get());
     
@@ -14,7 +18,7 @@ TransferFunctionView::TransferFunctionView(TFController& ctrl)
     referenceChannelSelector->addListener(this);
     addAndMakeVisible(referenceChannelSelector.get());
     
-    measurementLabel = std::make_unique<juce::Label>("measLabel", "Measurement Channel:");
+    measurementLabel = std::make_unique<juce::Label>("measLabel", strings.getTFMeasurementChannel());
     measurementLabel->setColour(juce::Label::textColourId, juce::Colours::white);
     addAndMakeVisible(measurementLabel.get());
     
@@ -29,15 +33,27 @@ TransferFunctionView::TransferFunctionView(TFController& ctrl)
     magnitudePlot = std::make_unique<MagnitudePlotComponent>(controller.getProcessor());
     addAndMakeVisible(magnitudePlot.get());
     
+    // Auto-suggestions component
+    suggestionsComponent = std::make_unique<TFAutoSuggestionsComponent>();
+    addAndMakeVisible(suggestionsComponent.get());
+    
     // Listen to controller for device changes
     controller.addChangeListener(this);
     
+    // Listen to localization changes
+    LocalizedStrings::getInstance().addChangeListener(this);
+    
     updateChannelSelectors();
+    
+    // Start timer to update suggestions (reduced frequency for performance and to prevent flickering)
+    startTimer(2000);
 }
 
 TransferFunctionView::~TransferFunctionView()
 {
+    stopTimer();
     controller.removeChangeListener(this);
+    LocalizedStrings::getInstance().removeChangeListener(this);
 }
 
 void TransferFunctionView::paint(juce::Graphics& g)
@@ -61,10 +77,18 @@ void TransferFunctionView::resized()
     measurementLabel->setBounds(selectorArea.removeFromLeft(150).reduced(5));
     measurementChannelSelector->setBounds(selectorArea.removeFromLeft(selectorWidth).reduced(5));
     
-    // Split remaining space: Phase (top 50%), Magnitude (bottom 50%)
-    const int halfHeight = bounds.getHeight() / 2;
-    phasePlot->setBounds(bounds.removeFromTop(halfHeight).reduced(5));
-    magnitudePlot->setBounds(bounds.reduced(5));
+    // Split remaining space: Plots (left 60%), Suggestions (right 40%)
+    const int plotWidth = static_cast<int>(bounds.getWidth() * 0.6f);
+    auto plotArea = bounds.removeFromLeft(plotWidth);
+    bounds.removeFromLeft(5);  // Spacing
+    
+    // Split plot area: Phase (top 50%), Magnitude (bottom 50%)
+    const int halfHeight = plotArea.getHeight() / 2;
+    phasePlot->setBounds(plotArea.removeFromTop(halfHeight).reduced(5));
+    magnitudePlot->setBounds(plotArea.reduced(5));
+    
+    // Suggestions on the right
+    suggestionsComponent->setBounds(bounds.reduced(5));
 }
 
 void TransferFunctionView::updateChannelSelectors()
@@ -107,4 +131,25 @@ void TransferFunctionView::changeListenerCallback(juce::ChangeBroadcaster* sourc
         // Device changed - update channel selectors
         updateChannelSelectors();
     }
+    else if (source == &LocalizedStrings::getInstance())
+    {
+        // Language changed - update labels
+        auto& strings = LocalizedStrings::getInstance();
+        referenceLabel->setText(strings.getTFReferenceChannel(), juce::dontSendNotification);
+        measurementLabel->setText(strings.getTFMeasurementChannel(), juce::dontSendNotification);
+        repaint();
+    }
+}
+
+void TransferFunctionView::timerCallback()
+{
+    updateSuggestions();
+}
+
+void TransferFunctionView::updateSuggestions()
+{
+    auto result = controller.getAnalysisResults();
+    auto suggestions = controller.getSuggestions();
+    
+    suggestionsComponent->updateAnalysis(result, suggestions);
 }

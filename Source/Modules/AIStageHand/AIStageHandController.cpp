@@ -21,6 +21,14 @@ void AIStageHandController::activate()
     if (active.load())
         return;
 
+    // Verify device is available before activating
+    auto* device = deviceManager.getAudioDeviceManager().getCurrentAudioDevice();
+    if (device == nullptr || !device->isOpen())
+    {
+        juce::Logger::writeToLog("AIStageHandController::activate() - No device available, cannot activate");
+        return;
+    }
+
     active.store(true);
     analyzer.startThread(juce::Thread::Priority::normal);
     deviceManager.addAudioCallback(this);
@@ -109,8 +117,13 @@ void AIStageHandController::audioDeviceIOCallbackWithContext(const float* const*
     if (!active.load())
         return;
 
+    // Verify device is actually running
+    auto* device = deviceManager.getAudioDeviceManager().getCurrentAudioDevice();
+    if (device == nullptr || !device->isOpen() || !deviceManager.isDeviceActive())
+        return;
+
     const int channels = juce::jmin(numInputChannels.load(), numInputCh);
-    if (channels <= 0 || inputChannelData == nullptr)
+    if (channels <= 0 || inputChannelData == nullptr || numSamples <= 0)
         return;
 
     // Atualiza RMS rápido e lock-free

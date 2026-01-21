@@ -19,6 +19,15 @@ void AntiMaskingController::activate()
     if (active.exchange (true))
         return;
 
+    // Verify device is available before activating
+    auto* device = deviceManager.getAudioDeviceManager().getCurrentAudioDevice();
+    if (device == nullptr || !device->isOpen())
+    {
+        juce::Logger::writeToLog("AntiMaskingController::activate() - No device available, cannot activate");
+        active.store(false);
+        return;
+    }
+
     updateSettingsFromDevice();
     deviceManager.addAudioCallback (this);
 
@@ -140,7 +149,12 @@ void AntiMaskingController::audioDeviceIOCallbackWithContext (const float* const
     if (! active.load())
         return;
 
-    if (inputChannelData == nullptr || numSamples <= 0)
+    // Verify device is actually running
+    auto* device = deviceManager.getAudioDeviceManager().getCurrentAudioDevice();
+    if (device == nullptr || !device->isOpen() || !deviceManager.isDeviceActive())
+        return;
+
+    if (inputChannelData == nullptr || numSamples <= 0 || numInputChannels == 0)
         return;
 
     const int t = targetChannel.load();

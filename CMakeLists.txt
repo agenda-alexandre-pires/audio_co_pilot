@@ -72,12 +72,18 @@ target_sources(AudioCoPilot PRIVATE
     Source/Core/TransferFunction/TFProcessor.h
     Source/Core/TransferFunction/TFController.cpp
     Source/Core/TransferFunction/TFController.h
+    Source/Core/TransferFunction/TFAutoAnalyzer.cpp
+    Source/Core/TransferFunction/TFAutoAnalyzer.h
+    Source/Core/TransferFunction/TFKnowledgeBase.cpp
+    Source/Core/TransferFunction/TFKnowledgeBase.h
     Source/UI/TransferFunction/PhasePlotComponent.cpp
     Source/UI/TransferFunction/PhasePlotComponent.h
     Source/UI/TransferFunction/MagnitudePlotComponent.cpp
     Source/UI/TransferFunction/MagnitudePlotComponent.h
     Source/UI/TransferFunction/TransferFunctionView.cpp
     Source/UI/TransferFunction/TransferFunctionView.h
+    Source/UI/TransferFunction/TFAutoSuggestionsComponent.cpp
+    Source/UI/TransferFunction/TFAutoSuggestionsComponent.h
 
     # Anti-Masking Module
     Source/Modules/AntiMasking/BarkAnalyzer.cpp
