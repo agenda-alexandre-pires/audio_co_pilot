@@ -1,0 +1,41 @@
+
+**********************************************************
+Audio Co-Pilot Log
+Log started: 12 Jan 2026 2:01:50am
+
+=== Audio Co-Pilot Started ===
+â Explicitly enabling 1 input channels for Microfone (MacBook Pro)
+Auto-selected output device: BlackHole 16ch
+About to setAudioDeviceSetup - Input: Microfone (MacBook Pro) Output: BlackHole 16ch
+Callback added before setAudioDeviceSetup
+Device about to start:
+  Device: BlackHole 16ch
+  Input channels active: 1 / 1
+  Output channels active: 2 / 16
+  Active input mask: 1
+  Active output mask: 11
+  Device activated with 1 inputs, 2 outputs
+setAudioDeviceSetup returned - Error: none
+Input device selected successfully: Microfone (MacBook Pro)
+Meter read ch0 - RMS: 0 Peak: 0 numChannels: 1
+Meter read ch0 - RMS: 0 Peak: 0 numChannels: 1
+Meter read ch0 - RMS: 0 Peak: 0 numChannels: 1
+Meter read ch0 - RMS: 0 Peak: 0 numChannels: 1
+Meter read ch0 - RMS: 0 Peak: 0 numChannels: 1
+â Explicitly enabling 2 output channels for Alto-falantes (MacBook Pro)
+Device about to start:
+  Device: BlackHole 16ch
+  Input channels active: 1 / 1
+  Output channels active: 2 / 16
+  Active input mask: 1
+  Active output mask: 11
+  Device activated with 1 inputs, 2 outputs
+Device about to start:
+  Device: Alto-falantes (MacBook Pro)
+  Input channels active: 1 / 1
+  Output channels active: 2 / 2
+  Active input mask: 1
+  Active output mask: 11
+  Device activated with 1 inputs, 2 outputs
+Output device selected successfully: Alto-falantes (MacBook Pro)
+=== Audio Co-Pilot Shutting Down ===

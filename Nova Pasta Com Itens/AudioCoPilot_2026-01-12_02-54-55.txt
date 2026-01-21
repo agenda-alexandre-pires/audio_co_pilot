@@ -1,0 +1,51 @@
+
+**********************************************************
+Audio Co-Pilot Log
+Log started: 12 Jan 2026 2:54:55am
+
+=== Audio Co-Pilot Started ===
+â Explicitly enabling 1 input channels for Microfone (MacBook Pro)
+About to setAudioDeviceSetup - Input: Microfone (MacBook Pro) Output: 
+Callback added before setAudioDeviceSetup
+Device about to start:
+  Device: Microfone (MacBook Pro)
+  Input channels active: 1 / 1
+  Output channels active: 0 / 0
+  Active input mask: 1
+  Active output mask: 0
+  WARNING: No active output channels, using available count: 0
+  Device activated with 1 inputs, 0 outputs
+setAudioDeviceSetup returned - Error: none
+Input device selected successfully: Microfone (MacBook Pro)
+Update ch0 input - RMS: 0.410774 Peak: 0.564869
+Meter read ch0 - RMS: 0.410774 Peak: 0.564869 numChannels: 1
+Meter read ch0 - RMS: 0.410774 Peak: 0.564869 numChannels: 1
+Update ch0 input - RMS: 0.353633 Peak: 0.55617
+Update ch0 input - RMS: 0.241095 Peak: 0.361005
+Update ch0 input - RMS: 0.116916 Peak: 0.234618
+Meter read ch0 - RMS: 0.116916 Peak: 0.234618 numChannels: 1
+Update ch0 input - RMS: 0.192499 Peak: 0.3218
+Update ch0 input - RMS: 0.318537 Peak: 0.454502
+Update ch0 input - RMS: 0.254417 Peak: 0.425018
+Update ch0 input - RMS: 0.202056 Peak: 0.322883
+Meter read ch0 - RMS: 0.202056 Peak: 0.322883 numChannels: 1
+Update ch0 input - RMS: 0.0817458 Peak: 0.181248
+Update ch0 input - RMS: 0.109073 Peak: 0.203534
+Meter read ch0 - RMS: 0.103726 Peak: 0.233348 numChannels: 1
+â Explicitly enabling 64 output channels for Pro Tools Audio Bridge 64
+Device about to start:
+  Device: Microfone (MacBook Pro)
+  Input channels active: 1 / 1
+  Output channels active: 0 / 0
+  Active input mask: 1
+  Active output mask: 0
+  WARNING: No active output channels, using available count: 0
+  Device activated with 1 inputs, 0 outputs
+Device about to start:
+  Device: Pro Tools Audio Bridge 64
+  Input channels active: 1 / 1
+  Output channels active: 64 / 64
+  Active input mask: 1
+  Active output mask: 1111111111111111111111111111111111111111111111111111111111111111
+  Device activated with 1 inputs, 64 outputs
+Output device selected successfully: Pro Tools Audio Bridge 64

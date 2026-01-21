@@ -1,0 +1,102 @@
+
+**********************************************************
+Audio Co-Pilot Log
+Log started: 12 Jan 2026 2:45:21am
+
+=== Audio Co-Pilot Started ===
+â Explicitly enabling 1 input channels for Microfone (MacBook Pro)
+About to setAudioDeviceSetup - Input: Microfone (MacBook Pro) Output: 
+Callback added before setAudioDeviceSetup
+Device about to start:
+  Device: Microfone (MacBook Pro)
+  Input channels active: 1 / 1
+  Output channels active: 0 / 0
+  Active input mask: 1
+  Active output mask: 0
+  WARNING: No active output channels, using available count: 0
+  Device activated with 1 inputs, 0 outputs
+setAudioDeviceSetup returned - Error: none
+Input device selected successfully: Microfone (MacBook Pro)
+Meter read ch0 - RMS: 0 Peak: 0 numChannels: 1
+Update ch0 input - RMS: 0.0568298 Peak: 0.0828173
+Update ch0 input - RMS: 0.0549118 Peak: 0.0862408
+Meter read ch0 - RMS: 0.0549118 Peak: 0.0862408 numChannels: 1
+Update ch0 input - RMS: 0.0278111 Peak: 0.0385878
+Update ch0 input - RMS: 0.00932491 Peak: 0.0125276
+Update ch0 input - RMS: 0.00254011 Peak: 0.00362286
+Meter read ch0 - RMS: 0.00254011 Peak: 0.00362286 numChannels: 1
+Update ch0 input - RMS: 0.000876812 Peak: 0.00194043
+Update ch0 input - RMS: 0.000343918 Peak: 0.000763368
+Update ch0 input - RMS: 0.000129383 Peak: 0.000245423
+Meter read ch0 - RMS: 0.000129383 Peak: 0.000245423 numChannels: 1
+Update ch0 input - RMS: 4.40594e-05 Peak: 6.78187e-05
+Update ch0 input - RMS: 1.34087e-05 Peak: 1.8485e-05
+Meter read ch0 - RMS: 3.73316e-06 Peak: 5.05272e-06 numChannels: 1
+â Explicitly enabling 16 output channels for BlackHole 16ch
+Device about to start:
+  Device: Microfone (MacBook Pro)
+  Input channels active: 1 / 1
+  Output channels active: 0 / 0
+  Active input mask: 1
+  Active output mask: 0
+  WARNING: No active output channels, using available count: 0
+  Device activated with 1 inputs, 0 outputs
+Device about to start:
+  Device: BlackHole 16ch
+  Input channels active: 1 / 1
+  Output channels active: 16 / 16
+  Active input mask: 1
+  Active output mask: 1111111111111111
+  Device activated with 1 inputs, 16 outputs
+Output device selected successfully: BlackHole 16ch
+â Explicitly enabling 64 output channels for Pro Tools Audio Bridge 64
+Device about to start:
+  Device: BlackHole 16ch
+  Input channels active: 1 / 1
+  Output channels active: 16 / 16
+  Active input mask: 1
+  Active output mask: 1111111111111111
+  Device activated with 1 inputs, 16 outputs
+Device about to start:
+  Device: Pro Tools Audio Bridge 64
+  Input channels active: 1 / 1
+  Output channels active: 64 / 64
+  Active input mask: 1
+  Active output mask: 1111111111111111111111111111111111111111111111111111111111111111
+  Device activated with 1 inputs, 64 outputs
+Output device selected successfully: Pro Tools Audio Bridge 64
+â Explicitly enabling 2 output channels for Alto-falantes (MacBook Pro)
+Device about to start:
+  Device: Pro Tools Audio Bridge 64
+  Input channels active: 1 / 1
+  Output channels active: 64 / 64
+  Active input mask: 1
+  Active output mask: 1111111111111111111111111111111111111111111111111111111111111111
+  Device activated with 1 inputs, 64 outputs
+Device about to start:
+  Device: Alto-falantes (MacBook Pro)
+  Input channels active: 1 / 1
+  Output channels active: 2 / 2
+  Active input mask: 1
+  Active output mask: 11
+  Device activated with 1 inputs, 2 outputs
+Output device selected successfully: Alto-falantes (MacBook Pro)
+â Explicitly enabling 64 input channels for Pro Tools Audio Bridge 64
+About to setAudioDeviceSetup - Input: Pro Tools Audio Bridge 64 Output: Alto-falantes (MacBook Pro)
+Device about to start:
+  Device: Alto-falantes (MacBook Pro)
+  Input channels active: 1 / 1
+  Output channels active: 2 / 2
+  Active input mask: 1
+  Active output mask: 11
+  Device activated with 1 inputs, 2 outputs
+Callback added before setAudioDeviceSetup
+Device about to start:
+  Device: Alto-falantes (MacBook Pro)
+  Input channels active: 64 / 64
+  Output channels active: 2 / 2
+  Active input mask: 1111111111111111111111111111111111111111111111111111111111111111
+  Active output mask: 11
+  Device activated with 64 inputs, 2 outputs
+setAudioDeviceSetup returned - Error: none
+Input device selected successfully: Pro Tools Audio Bridge 64

@@ -1,0 +1,10 @@
+build/
+cmake-build-*/
+*.xcodeproj
+*.xcworkspace
+.DS_Store
+*.dSYM
+*.o
+*.a
+*.dylib
+*.so
