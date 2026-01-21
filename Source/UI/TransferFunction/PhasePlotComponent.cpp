@@ -4,7 +4,8 @@
 PhasePlotComponent::PhasePlotComponent(TFProcessor& proc)
     : processor(proc)
 {
-    // Timer will start when component becomes visible
+    // Start timer for real-time updates (60Hz = 16.67ms for smooth Smaart-like display)
+    startTimer(17);
 }
 
 PhasePlotComponent::~PhasePlotComponent()
@@ -34,9 +35,14 @@ void PhasePlotComponent::drawPhaseGraph(juce::Graphics& g, juce::Rectangle<int> 
     // Get latest data
     processor.getPhaseResponse(phaseData);
     processor.getFrequencyBins(frequencies);
+    processor.getCoherence(coherenceData);
     
     if (phaseData.empty() || frequencies.empty() || phaseData.size() != frequencies.size())
         return;
+    
+    // Ensure coherence data matches
+    if (coherenceData.size() != phaseData.size())
+        coherenceData.resize(phaseData.size(), 1.0f);
     
     const float padding = 40.0f;
     auto graphArea = bounds.reduced(static_cast<int>(padding));
@@ -52,14 +58,27 @@ void PhasePlotComponent::drawPhaseGraph(juce::Graphics& g, juce::Rectangle<int> 
     // Vertical axis (phase)
     g.drawLine(padding, graphArea.getY(), padding, graphArea.getBottom(), 1.0f);
     
-    // Frequency labels (log scale)
+    // Frequency labels (Smaart-style: 31.5, 63, 125, 250, 500, 1k, 2k, 4k, 8k, 16k)
+    // CRITICAL: Use the SAME frequencyToX function for ticks AND plot
     g.setFont(juce::Font(10.0f));
     g.setColour(juce::Colours::lightgrey);
-    for (float freq = 100.0f; freq <= maxFrequency; freq *= 10.0f)
+    const float ticks[] = {31.5f, 63.0f, 125.0f, 250.0f, 500.0f, 1000.0f, 2000.0f, 4000.0f, 8000.0f, 16000.0f};
+    const juce::String tickLabels[] = {"31.5", "63", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"};
+    
+    for (int i = 0; i < 10; ++i)
     {
+        float freq = ticks[i];
+        if (freq < minFrequency || freq > maxFrequency)
+            continue;
+        
+        // Use the SAME frequencyToX function that the plot uses
         float x = frequencyToX(freq, width, minFrequency, maxFrequency);
+        
+        // Draw vertical line at this position
         g.drawVerticalLine(static_cast<int>(padding + x), graphArea.getY(), graphArea.getBottom());
-        g.drawText(juce::String(static_cast<int>(freq)) + " Hz", 
+        
+        // Draw label at the same position
+        g.drawText(tickLabels[i], 
                    static_cast<int>(padding + x - 20), graphArea.getBottom() + 2, 40, 15,
                    juce::Justification::centred);
     }
@@ -75,12 +94,13 @@ void PhasePlotComponent::drawPhaseGraph(juce::Graphics& g, juce::Rectangle<int> 
                    juce::Justification::centredRight);
     }
     
-    // Draw phase curve
+    // Draw phase curve with coherence-based alpha (Smaart-style)
     if (phaseData.size() < 2)
         return;
     
-    juce::Path phasePath;
-    bool pathStarted = false;
+    // Draw in segments based on coherence
+    juce::Path currentSegment;
+    bool segmentStarted = false;
     
     for (size_t i = 0; i < phaseData.size(); ++i)
     {
@@ -88,25 +108,59 @@ void PhasePlotComponent::drawPhaseGraph(juce::Graphics& g, juce::Rectangle<int> 
         if (freq < minFrequency || freq > maxFrequency)
             continue;
         
+        float coh = (i < coherenceData.size()) ? coherenceData[i] : 1.0f;
+        
+        // Calculate alpha based on coherence (Smaart-style)
+        // alpha = clamp((coh - 0.5)/0.5, 0, 1)
+        float alpha = juce::jlimit(0.0f, 1.0f, (coh - 0.5f) / 0.5f);
+        
+        // Skip points with very low coherence (almost invisible)
+        if (alpha < 0.1f)
+        {
+            // Break path segment
+            if (segmentStarted)
+            {
+                g.setColour(graphColour.withAlpha(0.3f));
+                g.strokePath(currentSegment, juce::PathStrokeType(1.5f));
+                currentSegment.clear();
+                segmentStarted = false;
+            }
+            continue;
+        }
+        
         float x = frequencyToX(freq, width, minFrequency, maxFrequency);
         float y = phaseToY(phaseData[i], height);
         
         float graphX = padding + x;
         float graphY = graphArea.getY() + y;
         
-        if (!pathStarted)
+        if (!segmentStarted)
         {
-            phasePath.startNewSubPath(graphX, graphY);
-            pathStarted = true;
+            currentSegment.startNewSubPath(graphX, graphY);
+            segmentStarted = true;
         }
         else
         {
-            phasePath.lineTo(graphX, graphY);
+            currentSegment.lineTo(graphX, graphY);
+        }
+        
+        // Draw segment when coherence changes significantly or at end
+        if (i == phaseData.size() - 1 || 
+            (i > 0 && std::abs(alpha - juce::jlimit(0.0f, 1.0f, (coherenceData[i-1] - 0.5f) / 0.5f)) > 0.3f))
+        {
+            g.setColour(graphColour.withAlpha(0.3f + alpha * 0.7f));  // Range: 0.3 to 1.0
+            g.strokePath(currentSegment, juce::PathStrokeType(1.5f));
+            currentSegment.clear();
+            segmentStarted = false;
         }
     }
     
-    g.setColour(graphColour);
-    g.strokePath(phasePath, juce::PathStrokeType(2.0f));
+    // Draw final segment if any
+    if (segmentStarted)
+    {
+        g.setColour(graphColour);
+        g.strokePath(currentSegment, juce::PathStrokeType(1.5f));
+    }
 }
 
 float PhasePlotComponent::frequencyToX(float frequency, float width, float minFreq, float maxFreq)
@@ -133,11 +187,14 @@ void PhasePlotComponent::resized()
 
 void PhasePlotComponent::timerCallback()
 {
-    if (! isVisible())
+    // Only repaint if visible (optimized for real-time performance)
+    if (!isVisible())
     {
         stopTimer();
         return;
     }
+    
+    // Repaint for real-time updates (60Hz = smooth Smaart-like display)
     repaint();
 }
 
@@ -145,8 +202,8 @@ void PhasePlotComponent::visibilityChanged()
 {
     if (isVisible())
     {
-        if (! isTimerRunning())
-            startTimer(30);
+        if (!isTimerRunning())
+            startTimer(17);  // 60Hz for smooth real-time display (Smaart-like)
     }
     else
     {

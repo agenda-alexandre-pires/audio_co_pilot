@@ -36,6 +36,9 @@ private:
     std::unique_ptr<juce::Label> measurementLabel;
     std::unique_ptr<juce::ComboBox> measurementChannelSelector;
     
+    std::unique_ptr<juce::Label> delayLabel;
+    std::unique_ptr<juce::Label> delayValueLabel;
+    
     std::unique_ptr<class PhasePlotComponent> phasePlot;
     std::unique_ptr<class MagnitudePlotComponent> magnitudePlot;
     std::unique_ptr<class TFAutoSuggestionsComponent> suggestionsComponent;

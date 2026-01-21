@@ -23,14 +23,25 @@ void TFProcessor::prepare(int newFFTSize, double newSampleRate)
     hopSize = static_cast<int>(fftSize * (1.0 - overlap));
     frameDt = static_cast<double>(hopSize) / sampleRate;
     
-    // Update averaging alpha
-    // Use very fast averaging for responsiveness (0.2s = 200ms)
-    double Tavg = 0.2;  // Fast averaging to see changes immediately
-    averagingAlpha = 1.0 - std::exp(-frameDt / Tavg);
+    // Update averaging alpha using time constant
+    // alpha = exp(-frameDt / Tavg) for exponential averaging
+    // This ensures fast convergence (0.3-1.0s time constant recommended)
+    double Tavg = averagingTime.load();
+    averagingAlpha = std::exp(-frameDt / Tavg);
     
     // Prepare FFT analyzers
+    // NOTE: FFTAnalyzer rounds fftSize to nearest power of 2
     referenceFFT->prepare(fftSize, sampleRate);
     measurementFFT->prepare(fftSize, sampleRate);
+    
+    // Get the ACTUAL fftSize used by FFTAnalyzer (may be rounded to power of 2)
+    int actualFFTSize = referenceFFT->getFFTSize();
+    if (actualFFTSize != fftSize)
+    {
+        juce::Logger::writeToLog("TFProcessor::prepare - fftSize rounded: " + 
+                                 juce::String(fftSize) + " -> " + juce::String(actualFFTSize));
+        fftSize = actualFFTSize;  // Use the actual FFT size
+    }
     
     int spectrumSize = fftSize / 2 + 1;
     
@@ -51,10 +62,21 @@ void TFProcessor::prepare(int newFFTSize, double newSampleRate)
     frequencies.resize(spectrumSize);
     
     // Pre-compute frequency bins
+    // CORRECT FORMULA: freqHz = k * sampleRate / fftSize
+    // where k is the bin index (0..spectrumSize-1) and fftSize is the actual FFT size (e.g., 16384)
     for (int i = 0; i < spectrumSize; ++i)
     {
-        frequencies[i] = static_cast<float>(i * sampleRate / fftSize);
+        frequencies[i] = static_cast<float>(i * sampleRate / static_cast<double>(fftSize));
     }
+    
+    // DIAGNOSTIC LOG: Processor settings (Parte 3)
+    juce::Logger::writeToLog("TFProcessor::prepare - fftSize=" + juce::String(fftSize) + 
+                             ", sampleRate=" + juce::String(sampleRate, 1) + 
+                             ", spectrumSize=" + juce::String(spectrumSize) +
+                             ", freq[0]=" + juce::String(frequencies[0], 2) +
+                             ", freq[100]=" + juce::String(frequencies[juce::jmin(100, spectrumSize-1)], 2) +
+                             ", freq[1000]=" + juce::String(frequencies[juce::jmin(1000, spectrumSize-1)], 2) +
+                             ", freq[last]=" + juce::String(frequencies[spectrumSize-1], 2));
     
     // Clear buffers
     referenceBuffer.clear();
@@ -64,27 +86,19 @@ void TFProcessor::prepare(int newFFTSize, double newSampleRate)
     ready.store(true);
 }
 
-void TFProcessor::processReference(const float* input, int numSamples)
-{
-    if (!ready.load() || numSamples == 0)
-        return;
-    
-    // Accumulate samples
-    referenceBuffer.insert(referenceBuffer.end(), input, input + numSamples);
-    
-    // Try to process synchronized frames
-    tryProcessSynchronizedFrames();
-}
+// OLD methods removed - caused sync issues
+// Now using processBlock() to ensure REF and MEAS are always synchronized
 
-void TFProcessor::processMeasurement(const float* input, int numSamples)
+void TFProcessor::processBlock(const float* ref, const float* meas, int numSamples)
 {
-    if (!ready.load() || numSamples == 0)
+    if (!ready.load() || numSamples <= 0)
         return;
     
-    // Accumulate samples
-    measurementBuffer.insert(measurementBuffer.end(), input, input + numSamples);
+    // Accumulate samples from both channels together (guaranteed synchronized)
+    referenceBuffer.insert(referenceBuffer.end(), ref, ref + numSamples);
+    measurementBuffer.insert(measurementBuffer.end(), meas, meas + numSamples);
     
-    // Try to process synchronized frames
+    // Process synchronized frames
     tryProcessSynchronizedFrames();
 }
 
@@ -154,7 +168,8 @@ void TFProcessor::processFrame()
     }
     avgCoherence /= spectrumSize;
     
-    if (avgCoherence > 0.6 && std::abs(estimatedDelay) < 0.01)
+    // Apply delay compensation if coherence is good (removed 10ms limit - too restrictive)
+    if (avgCoherence > 0.6)
     {
         applyDelayCompensation();
     }
@@ -197,17 +212,21 @@ void TFProcessor::updateAverages()
         // Gxy_k = Y * conj(X)  (MEAS * conj(REF)) - CORRECT FORMULA
         std::complex<double> Gxy_k = Y[k] * std::conj(X[k]);
         
-        // Update averages: G = (1-a)*G + a*G_k
-        Gxx[k] = (1.0 - alpha) * Gxx[k] + alpha * Gxx_k;
-        Gxy[k] = (1.0 - alpha) * Gxy[k] + alpha * Gxy_k;
-        
-        // Compute H1 = Gxy / (Gxx + eps) - EXACTLY AS DOCUMENT
-        double denom = Gxx[k] + eps;
-        H[k] = Gxy[k] / denom;
+        // Update averages in complex domain (Smaart-like):
+        // avgGxx = alpha*avgGxx + (1-alpha)*Gxx_k
+        // avgGxy = alpha*avgGxy + (1-alpha)*Gxy_k
+        // This ensures fast convergence and stability
+        Gxx[k] = alpha * Gxx[k] + (1.0 - alpha) * Gxx_k;
+        Gxy[k] = alpha * Gxy[k] + (1.0 - alpha) * Gxy_k;
         
         // Also compute Gyy for coherence calculation
         double Gyy_k = std::norm(Y[k]);
-        Gyy[k] = (1.0 - alpha) * Gyy[k] + alpha * Gyy_k;
+        Gyy[k] = alpha * Gyy[k] + (1.0 - alpha) * Gyy_k;
+        
+        // Compute H1 = avgGxy / (avgGxx + eps) - ONLY AFTER averaging
+        // This ensures phase is stable and converges quickly
+        double denom = Gxx[k] + eps;
+        H[k] = Gxy[k] / denom;
         
         // Compute coherence: gamma2 = |Gxy|^2 / (Gxx * Gyy)
         double num = std::norm(Gxy[k]);
@@ -239,7 +258,7 @@ void TFProcessor::estimateDelay()
     // For simplicity, use JUCE FFT (need to create IFFT)
     // For now, use phase-based delay estimation (more stable)
     
-    // Alternative: Linear fit of phase
+    // Linear fit of phase (with unwrap first)
     // Select bins with good coherence
     std::vector<double> freqs;
     std::vector<double> phases;
@@ -249,7 +268,7 @@ void TFProcessor::estimateDelay()
         if (gamma2[k] > cohMinMath)
         {
             double f = frequencies[k];
-            if (f >= 100.0 && f <= 10000.0)  // Use mid-range frequencies
+            if (f >= 200.0 && f <= 8000.0)  // Use mid-range frequencies (more stable)
             {
                 freqs.push_back(f);
                 double phase = std::arg(H[k]);
@@ -258,8 +277,24 @@ void TFProcessor::estimateDelay()
         }
     }
     
-    if (freqs.size() < 10)
+    if (freqs.size() < 20)  // Need enough points for reliable fit
         return;
+    
+    // CRITICAL: Unwrap phases BEFORE linear fit
+    for (size_t i = 1; i < phases.size(); ++i)
+    {
+        double d = phases[i] - phases[i - 1];
+        while (d > juce::MathConstants<double>::pi)
+        {
+            phases[i] -= 2.0 * juce::MathConstants<double>::pi;
+            d -= 2.0 * juce::MathConstants<double>::pi;
+        }
+        while (d < -juce::MathConstants<double>::pi)
+        {
+            phases[i] += 2.0 * juce::MathConstants<double>::pi;
+            d += 2.0 * juce::MathConstants<double>::pi;
+        }
+    }
     
     // Linear fit: phase = b + m*f
     // Delay: tau = -m / (2*pi)
@@ -282,8 +317,11 @@ void TFProcessor::estimateDelay()
         double m = (n * sum_f_phase - sum_f * sum_phase) / denom;
         double tau_new = -m / (2.0 * juce::MathConstants<double>::pi);
         
-        // Smooth delay estimate
-        smoothedDelay = 0.9 * smoothedDelay + 0.1 * tau_new;
+        // Clamp to reasonable range
+        tau_new = std::max(-0.1, std::min(0.1, tau_new));
+        
+        // Smooth delay estimate (faster update for responsiveness)
+        smoothedDelay = 0.8 * smoothedDelay + 0.2 * tau_new;
         estimatedDelay = smoothedDelay;
     }
 }
@@ -293,23 +331,32 @@ void TFProcessor::applyDelayCompensation()
     int spectrumSize = static_cast<int>(H.size());
     double tau = estimatedDelay;
     
-    // Only apply if delay is reasonable (not too large)
-    if (std::abs(tau) > 0.1)  // More than 100ms is suspicious
+    // Protection: reset delay if it seems wrong (more than 100ms is suspicious)
+    if (std::abs(tau) > 0.1)
     {
-        // Reset delay if it seems wrong
         estimatedDelay = 0.0;
         smoothedDelay = 0.0;
         tau = 0.0;
+        juce::Logger::writeToLog("TFProcessor::applyDelayCompensation - Delay reset (too large: " + juce::String(tau, 4) + "s)");
     }
     
+    // Apply delay compensation in complex domain
+    // H_comp = H * exp(+j*2*pi*f*tau)
+    // This removes the linear phase component due to delay between REF and MEAS channels
     for (int k = 0; k < spectrumSize; ++k)
     {
         double f = frequencies[k];
-        // Apply delay compensation: H_comp = H * exp(+j*2*pi*f*tau)
-        // This removes the linear phase component due to delay
         double phase_comp = 2.0 * juce::MathConstants<double>::pi * f * tau;
         std::complex<double> comp = std::exp(std::complex<double>(0.0, phase_comp));
         H_compensated[k] = H[k] * comp;
+    }
+    
+    // Log delay compensation (every 100 delay updates to avoid spam)
+    static int delayLogCounter = 0;
+    delayLogCounter++;
+    if (delayLogCounter % 100 == 0 && std::abs(tau) > 1e-6)
+    {
+        juce::Logger::writeToLog("TFProcessor::applyDelayCompensation - tau=" + juce::String(tau * 1000.0, 2) + "ms");
     }
 }
 
@@ -318,15 +365,10 @@ void TFProcessor::applySmoothing()
     int spectrumSize = static_cast<int>(H_compensated.size());
     double oct = smoothingOctaves.load();
     
-    // TEMPORARILY DISABLE smoothing for debugging - use raw data
-    // This will show exact frequency response without any smoothing artifacts
-    H_smoothed = H_compensated;
-    return;
-    
-    // Very minimal fractional-octave smoothing (or skip if oct is too small)
+    // Apply fractional-octave smoothing (1/12 octave default)
     if (oct < 1.0/96.0)
     {
-        // Skip smoothing - use raw data for maximum detail
+        // Skip smoothing only if oct is extremely small
         H_smoothed = H_compensated;
         return;
     }
@@ -452,18 +494,58 @@ void TFProcessor::extractMagnitudeAndPhase()
 {
     int spectrumSize = static_cast<int>(H_smoothed.size());
     
+    // Extract magnitude and phase from averaged complex H
+    // CRITICAL: No averaging in phaseDegrees/phaseRad - averaging is done in complex domain
+    // This ensures fast convergence and stability (Smaart-like)
     for (int k = 0; k < spectrumSize; ++k)
     {
-        // Magnitude in dB
+        // Magnitude in dB: magDb = 20*log10(|Havg|)
         double mag = std::abs(H_smoothed[k]);
         magnitudeDb[k] = static_cast<float>(20.0 * std::log10(std::max(mag, eps)));
         
-        // Phase in degrees
-        double phase_rad = std::arg(H_smoothed[k]);
+        // Phase in radians: phaseRad = atan2(imag(Havg), real(Havg))
+        // Then convert to degrees
+        double phase_rad = std::atan2(H_smoothed[k].imag(), H_smoothed[k].real());
         phaseDegrees[k] = static_cast<float>(phase_rad * 180.0 / juce::MathConstants<double>::pi);
         
         // Coherence (0..1)
         coherence[k] = static_cast<float>(std::max(0.0, std::min(1.0, gamma2[k])));
+    }
+    
+    // DIAGNOSTIC: Find peak within 20-20k Hz range and calculate expected bin for 1kHz
+    int kPeak = 0;
+    float vPeak = -9999.0f;
+    for (int k = 1; k < spectrumSize; ++k)  // Start from k=1 to skip DC
+    {
+        // Only consider frequencies in 20-20000 Hz range
+        float freq = (k < static_cast<int>(frequencies.size())) ? frequencies[k] : 0.0f;
+        if (freq >= 20.0f && freq <= 20000.0f)
+        {
+            if (magnitudeDb[k] > vPeak)
+            {
+                vPeak = magnitudeDb[k];
+                kPeak = k;
+            }
+        }
+    }
+    
+    // Calculate expected bin for 1kHz: k1k = 1000 * fftSize / sampleRate
+    int k1kExpected = static_cast<int>(1000.0 * fftSize / sampleRate);
+    float freq1kExpected = (k1kExpected < spectrumSize) ? frequencies[k1kExpected] : 0.0f;
+    
+    // Log peak info (every 100 frames to avoid spam)
+    static int frameCounter = 0;
+    frameCounter++;
+    if (kPeak > 0 && frameCounter % 100 == 0)
+    {
+        float peakFreq = (kPeak < static_cast<int>(frequencies.size())) ? frequencies[kPeak] : 0.0f;
+        juce::Logger::writeToLog("TF Peak: k=" + juce::String(kPeak) + 
+                                 " freq=" + juce::String(peakFreq, 2) + " Hz" +
+                                 " mag=" + juce::String(vPeak, 2) + " dB" +
+                                 " Fs=" + juce::String(sampleRate, 1) + 
+                                 " fftSize=" + juce::String(fftSize) +
+                                 " | k@1k expected=" + juce::String(k1kExpected) +
+                                 " freq@k1k=" + juce::String(freq1kExpected, 2) + " Hz");
     }
 }
 
@@ -516,3 +598,4 @@ void TFProcessor::reset()
     
     newDataAvailable.store(false);
 }
+

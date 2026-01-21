@@ -17,7 +17,8 @@
  */
 class TFController : public juce::AudioIODeviceCallback,
                      public juce::ChangeListener,
-                     public juce::ChangeBroadcaster
+                     public juce::ChangeBroadcaster,
+                     public juce::Timer
 {
 public:
     TFController(DeviceManager& deviceManager);
@@ -53,6 +54,9 @@ public:
     
     // Change listener (for device changes)
     void changeListenerCallback(juce::ChangeBroadcaster* source) override;
+    
+    // Timer callback (runs on message thread for auto-analysis)
+    void timerCallback() override;
     
     // Get processor for UI
     TFProcessor& getProcessor() { return processor; }

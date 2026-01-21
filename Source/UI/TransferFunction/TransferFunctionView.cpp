@@ -26,6 +26,18 @@ TransferFunctionView::TransferFunctionView(TFController& ctrl)
     measurementChannelSelector->addListener(this);
     addAndMakeVisible(measurementChannelSelector.get());
     
+    // Delay display
+    delayLabel = std::make_unique<juce::Label>("delayLabel", "Delay:");
+    delayLabel->setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    delayLabel->setJustificationType(juce::Justification::centredRight);
+    addAndMakeVisible(delayLabel.get());
+    
+    delayValueLabel = std::make_unique<juce::Label>("delayValue", "0.00 ms");
+    delayValueLabel->setColour(juce::Label::textColourId, juce::Colours::yellow);
+    delayValueLabel->setJustificationType(juce::Justification::centredLeft);
+    delayValueLabel->setFont(juce::Font(12.0f, juce::Font::bold));
+    addAndMakeVisible(delayValueLabel.get());
+    
     // Plots
     phasePlot = std::make_unique<PhasePlotComponent>(controller.getProcessor());
     addAndMakeVisible(phasePlot.get());
@@ -45,8 +57,9 @@ TransferFunctionView::TransferFunctionView(TFController& ctrl)
     
     updateChannelSelectors();
     
-    // Start timer to update suggestions (reduced frequency for performance and to prevent flickering)
-    startTimer(2000);
+    // Start timer for real-time updates (optimized for Smaart-like responsiveness)
+    // Update delay display and suggestions at 30Hz (33ms) for smooth real-time feel
+    startTimer(33);
 }
 
 TransferFunctionView::~TransferFunctionView()
@@ -76,6 +89,11 @@ void TransferFunctionView::resized()
     
     measurementLabel->setBounds(selectorArea.removeFromLeft(150).reduced(5));
     measurementChannelSelector->setBounds(selectorArea.removeFromLeft(selectorWidth).reduced(5));
+    selectorArea.removeFromLeft(spacing);
+    
+    // Delay display
+    delayLabel->setBounds(selectorArea.removeFromLeft(60).reduced(5));
+    delayValueLabel->setBounds(selectorArea.removeFromLeft(80).reduced(5));
     
     // Split remaining space: Plots (left 60%), Suggestions (right 40%)
     const int plotWidth = static_cast<int>(bounds.getWidth() * 0.6f);
@@ -143,7 +161,22 @@ void TransferFunctionView::changeListenerCallback(juce::ChangeBroadcaster* sourc
 
 void TransferFunctionView::timerCallback()
 {
-    updateSuggestions();
+    // Update delay display in real-time
+    double delaySeconds = controller.getProcessor().getEstimatedDelay();
+    double delayMs = delaySeconds * 1000.0;
+    
+    // Format delay value with 2 decimal places
+    juce::String delayText = juce::String(delayMs, 2) + " ms";
+    delayValueLabel->setText(delayText, juce::dontSendNotification);
+    
+    // Update suggestions (less frequently to avoid CPU overhead)
+    static int suggestionCounter = 0;
+    suggestionCounter++;
+    if (suggestionCounter >= 10)  // Update suggestions every ~330ms
+    {
+        suggestionCounter = 0;
+        updateSuggestions();
+    }
 }
 
 void TransferFunctionView::updateSuggestions()

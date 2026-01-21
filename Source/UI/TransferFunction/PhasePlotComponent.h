@@ -31,6 +31,7 @@ private:
     
     std::vector<float> frequencies;
     std::vector<float> phaseData;
+    std::vector<float> coherenceData;  // For coherence-based rendering
     
     static constexpr float minFrequency = 20.0f;
     static constexpr float maxFrequency = 20000.0f;

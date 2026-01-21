@@ -59,6 +59,9 @@ void TFController::deactivate()
     if (!isActive.load())
         return;
     
+    // Stop timer before deactivating
+    stopTimer();
+    
     deviceManager.getAudioDeviceManager().removeAudioCallback(this);
     processor.reset();
     autoAnalyzer.reset();
@@ -137,41 +140,14 @@ void TFController::audioDeviceIOCallbackWithContext(const float* const* inputCha
         bufferWriteIndex.store(currentIdx, std::memory_order_release);
     }
     
-    // Process reference channel
-    if (inputChannelData[refCh] != nullptr)
+    // Process both channels together (synchronized) - FIXED
+    if (inputChannelData[refCh] != nullptr && inputChannelData[measCh] != nullptr)
     {
-        processor.processReference(inputChannelData[refCh], numSamples);
+        processor.processBlock(inputChannelData[refCh], inputChannelData[measCh], numSamples);
     }
     
-    // Process measurement channel
-    if (inputChannelData[measCh] != nullptr)
-    {
-        processor.processMeasurement(inputChannelData[measCh], numSamples);
-    }
-    
-    // Perform auto-analysis periodically (not every frame for performance)
-    // Increased interval significantly to reduce CPU usage and prevent freezing
-    // NOTE: We schedule analysis on message thread to avoid doing heavy work on audio thread
-    analysisCounter++;
-    static constexpr int optimizedAnalysisInterval = 128;  // Analyze every 128 frames (~2.9s @ 44.1kHz)
-    if (analysisCounter >= optimizedAnalysisInterval)
-    {
-        analysisCounter = 0;
-        // Only analyze if we have enough data
-        if (bufferWriteIndex > analysisBufferSize / 2)
-        {
-            // Schedule analysis on message thread to avoid blocking audio thread
-            // Store a flag to check if we're still valid when callback executes
-            bool wasActive = isActive.load();
-            juce::MessageManager::callAsync([this, wasActive]() {
-                // Double-check we're still active (thread-safe check)
-                if (wasActive && isActive.load())
-                {
-                    performAutoAnalysis();
-                }
-            });
-        }
-    }
+    // NOTE: Auto-analysis is now handled by Timer on message thread (see timerCallback)
+    // This prevents use-after-free crashes from callAsync in audio thread
 }
 
 void TFController::audioDeviceAboutToStart(juce::AudioIODevice* device)
@@ -223,6 +199,19 @@ void TFController::changeListenerCallback(juce::ChangeBroadcaster* source)
         // This callback is already on the message thread (from ChangeBroadcaster)
         // So we can safely reinitialize directly
         knowledgeBase.reinitializeForLanguage();
+    }
+}
+
+void TFController::timerCallback()
+{
+    // This runs on the message thread - safe to call performAutoAnalysis
+    if (isActive.load())
+    {
+        // Only analyze if we have enough data
+        if (bufferWriteIndex.load() > analysisBufferSize / 2)
+        {
+            performAutoAnalysis();
+        }
     }
 }
 
@@ -320,8 +309,19 @@ void TFController::updateProcessorSettings()
     if (device == nullptr)
         return;
     
-    currentSampleRate = device->getCurrentSampleRate();
+    // DIAGNOSTIC LOG: Device settings (Parte 3)
+    juce::String deviceName = device->getName();
+    double deviceSampleRate = device->getCurrentSampleRate();
+    int deviceBufferSize = device->getCurrentBufferSizeSamples();
+    
+    currentSampleRate = deviceSampleRate;
     currentFFTSize = 16384;  // Smaart-style: 16384 for good resolution
+    
+    juce::Logger::writeToLog(juce::String("TFController::updateProcessorSettings - ") +
+                             juce::String("device: ") + deviceName +
+                             juce::String(", sampleRate: ") + juce::String(deviceSampleRate, 1) +
+                             juce::String(", bufferSize: ") + juce::String(deviceBufferSize) +
+                             juce::String(", fftSize: ") + juce::String(currentFFTSize));
     
     processor.prepare(currentFFTSize, currentSampleRate);
     autoAnalyzer.prepare(currentFFTSize, currentSampleRate);

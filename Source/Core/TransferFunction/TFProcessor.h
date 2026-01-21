@@ -27,8 +27,12 @@ public:
     void prepare(int fftSize, double sampleRate);
     
     // Process audio buffers (called from audio thread)
-    void processReference(const float* input, int numSamples);
-    void processMeasurement(const float* input, int numSamples);
+    // OLD: Separate calls (removed - causes sync issues)
+    // void processReference(const float* input, int numSamples);
+    // void processMeasurement(const float* input, int numSamples);
+    
+    // NEW: Synchronized processing - both channels together
+    void processBlock(const float* ref, const float* meas, int numSamples);
     
     // Get transfer function results (called from UI thread)
     void getMagnitudeResponse(std::vector<float>& magnitudeDb);
@@ -37,6 +41,9 @@ public:
     
     // Get frequency bins (for axis)
     void getFrequencyBins(std::vector<float>& frequencies);
+    
+    // Get estimated delay between channels (in seconds)
+    double getEstimatedDelay() const { return estimatedDelay; }
     
     // Reset processing
     void reset();
@@ -93,9 +100,9 @@ private:
     std::vector<float> coherence;
     std::vector<float> frequencies;
     
-    // Averaging state
-    double averagingAlpha{0.0};  // Computed from averagingTime
-    std::atomic<double> averagingTime{0.5};  // seconds - faster for responsiveness
+    // Averaging state (exponential averaging with time constant)
+    double averagingAlpha{0.0};  // Computed from averagingTime: alpha = exp(-frameDt / Tavg)
+    std::atomic<double> averagingTime{0.7};  // seconds - time constant (0.3-1.0s for fast convergence)
     double frameDt{0.0};  // Hop time in seconds
     
     // Delay compensation
@@ -104,8 +111,8 @@ private:
     int delayUpdateCounter{0};
     static constexpr int delayUpdatePeriod = 100;  // frames
     
-    // Smoothing - minimal for maximum detail
-    std::atomic<double> smoothingOctaves{1.0/96.0};  // 1/96 octave (essentially no smoothing)
+    // Smoothing - 1/12 octave default (Smaart-like)
+    std::atomic<double> smoothingOctaves{1.0/12.0};  // 1/12 octave default
     
     // Processing parameters
     int fftSize{16384};

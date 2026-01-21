@@ -64,12 +64,11 @@ void FFTAnalyzer::processBlock(const float* input, int numSamples, std::vector<s
     // Apply window
     applyWindow(windowedData.data(), fftSize);
     
-    // Copy to FFT input (interleaved real/imaginary)
-    for (int i = 0; i < fftSize; ++i)
-    {
-        fftData[i * 2] = windowedData[i];      // Real
-        fftData[i * 2 + 1] = 0.0f;             // Imaginary
-    }
+    // CRITICAL FIX: Copy real data directly to fftData[0..fftSize-1]
+    // Then zero the imaginary part (fftData[fftSize..2*fftSize-1])
+    // performRealOnlyForwardTransform expects: [real0, real1, ..., realN-1, 0, 0, ..., 0]
+    std::copy(windowedData.begin(), windowedData.end(), fftData.begin());
+    std::fill(fftData.begin() + fftSize, fftData.end(), 0.0f);
     
     // Perform FFT using juce::dsp::FFT
     if (fft != nullptr)
