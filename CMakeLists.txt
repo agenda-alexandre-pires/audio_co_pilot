@@ -65,6 +65,10 @@ target_sources(AudioCoPilot PRIVATE
     Source/UI/LookAndFeel/IndustrialLookAndFeel.cpp
     Source/UI/LookAndFeel/IndustrialLookAndFeel.h
     
+    # Theme System
+    Source/Theme.h
+    Source/AppLookAndFeel.h
+    
     # Transfer Function Module
     Source/Core/TransferFunction/FFTAnalyzer.cpp
     Source/Core/TransferFunction/FFTAnalyzer.h
